@@ -1,0 +1,141 @@
+# Plan de Implementación — Auditoría y Ampliación del Sistema Laravel
+
+## Contexto del proyecto
+
+El sistema **e-Absensi HRIS** ya tiene construido:
+- Login manual con `AuthController`
+- Middleware `RoleMiddleware` que protege rutas por rol (`admin`, `hr`, `employee`)
+- Sección de reportes de asistencia (`/reports/attendance`)
+- Estructura de rutas separada por archivos (`admin.php`, `reports.php`, etc.)
+
+Hay **3 objetivos de desarrollo** a implementar (el punto 1 ya está cumplido si el sistema corre):
+
+---
+
+## Objetivo 1 — Preparación del proyecto ✅ (ya completado)
+> El sistema ya está clonado y configurado en Laragon.
+
+**Pendiente:** resolver el conflicto de puertos MySQL (ver contexto anterior) para poder ejecutar `php artisan migrate --seed` y confirmar que el login funciona con usuario `admin` / contraseña `password`.
+
+---
+
+## Objetivo 2 — Auditoría de inicio de sesión
+
+### ¿Qué hay que hacer?
+Guardar en la base de datos un registro cada vez que alguien inicia sesión exitosamente: quién fue, desde qué IP, y cuándo.
+
+### ¿Dónde se hace el login?
+En [`app/Http/Controllers/Auth/AuthController.php`](file:///c:/laragon/www/e-absensi/app/Http/Controllers/Auth/AuthController.php) — método `login()`. Luego de que `Auth::attempt()` retorna `true` (login exitoso), ese es el momento exacto donde se debe guardar el registro.
+
+### Pasos:
+
+#### Paso 2.1 — Crear la migración para la tabla `login_audits`
+```bash
+php artisan make:migration create_login_audits_table
+```
+La tabla necesita 4 columnas: `id`, `user_id`, `ip_address`, `logged_in_at`.
+
+#### Paso 2.2 — Crear el Modelo `LoginAudit`
+```bash
+php artisan make:model LoginAudit
+```
+
+#### Paso 2.3 — Modificar `AuthController` para guardar el registro
+Después del `Auth::attempt()` exitoso, agregar una línea que cree el registro.
+
+#### Paso 2.4 — Ejecutar la migración
+```bash
+php artisan migrate
+```
+
+---
+
+## Objetivo 3 — Consulta de auditoría (solo Admin)
+
+### ¿Qué hay que hacer?
+Crear una pantalla dentro del panel de administrador que muestre la tabla de logins registrados, ordenada del más reciente al más antiguo. Protegerla para que solo el `admin` pueda acceder.
+
+### ¿Cómo se protege la ruta?
+El sistema ya tiene el middleware `role:admin` aplicado en `routes/admin.php`. Solo hay que agregar la nueva ruta dentro de ese grupo — así queda automáticamente protegida.
+
+### Pasos:
+
+#### Paso 3.1 — Crear el Controller de Auditoría
+```bash
+php artisan make:controller Admin/LoginAuditController
+```
+
+#### Paso 3.2 — Agregar la ruta en `routes/admin.php`
+Dentro del grupo `role:admin` existente.
+
+#### Paso 3.3 — Crear la vista Blade
+En `resources/views/admin/login-audits/index.blade.php` — una tabla con columnas: Usuario, IP, Fecha y hora.
+
+---
+
+## Objetivo 4 — Exportación CSV del reporte de asistencia
+
+### ¿Qué hay que hacer?
+En la pantalla de reportes ya existente (`/reports/attendance`), agregar un botón "Exportar CSV" que descargue los mismos datos mostrados respetando los filtros activos (mes y año).
+
+### ¿Cómo funciona la exportación en Laravel?
+Sin librerías externas: se genera una respuesta HTTP de tipo `text/csv` directamente desde el controller, enviando las filas como texto separado por comas. Es la forma más simple y directa.
+
+### Pasos:
+
+#### Paso 4.1 — Agregar el método `export()` al `AttendanceReportController`
+Reutilizar la misma lógica de filtros del método `index()`, pero en lugar de retornar una vista, retorna una descarga de archivo CSV.
+
+#### Paso 4.2 — Agregar la ruta de exportación en `routes/reports.php`
+
+#### Paso 4.3 — Agregar el botón en la vista del reporte
+Un enlace/botón que apunte a la ruta de exportación pasando los filtros activos como parámetros GET.
+
+---
+
+## Orden de implementación recomendado
+
+```
+[2.1] Migración login_audits
+   ↓
+[2.2] Modelo LoginAudit
+   ↓
+[2.3] Modificar AuthController (grabar el registro al login)
+   ↓
+[2.4] php artisan migrate  →  PROBAR: hacer login y ver si se guarda en BD
+   ↓
+[3.1] Controller LoginAuditController
+   ↓
+[3.2] Ruta en admin.php
+   ↓
+[3.3] Vista Blade con la tabla  →  PROBAR: entrar como admin y ver la lista
+   ↓
+[4.1] Método export() en AttendanceReportController
+   ↓
+[4.2] Ruta de exportación en reports.php
+   ↓
+[4.3] Botón en la vista del reporte  →  PROBAR: descargar CSV con filtros
+```
+
+---
+
+## Archivos que se crearán / modificarán
+
+| Acción | Archivo |
+|--------|---------|
+| **NUEVO** | `database/migrations/xxxx_create_login_audits_table.php` |
+| **NUEVO** | `app/Models/LoginAudit.php` |
+| **MODIFICAR** | `app/Http/Controllers/Auth/AuthController.php` |
+| **NUEVO** | `app/Http/Controllers/Admin/LoginAuditController.php` |
+| **MODIFICAR** | `routes/admin.php` |
+| **NUEVO** | `resources/views/admin/login-audits/index.blade.php` |
+| **MODIFICAR** | `app/Http/Controllers/Report/AttendanceReportController.php` |
+| **MODIFICAR** | `routes/reports.php` |
+| **MODIFICAR** | `resources/views/reports/attendance.blade.php` |
+
+---
+
+> [!IMPORTANT]
+> Antes de empezar, confirmar que el sistema corra correctamente (`php artisan serve`) y que se pueda hacer login con `admin` / `password`. Eso valida que el Objetivo 1 está completo.
+
+¿Aprobás este plan para empezar la implementación?
