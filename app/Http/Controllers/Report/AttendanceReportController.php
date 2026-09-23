@@ -55,31 +55,45 @@ class AttendanceReportController extends Controller
 
     public function export(Request $request)
     {
-        $month = $request->input('month');
-        $year = $request->input('year');
+        $month = $request->input('month', Carbon::now()->month);
+        $year = $request->input('year', Carbon::now()->year);
 
-        // Obtenemos los datos filtrados
         $attendances = Attendance::with('user')
             ->whereYear('attendance_date', $year)
             ->whereMonth('attendance_date', $month)
+            ->orderBy('attendance_date', 'asc')
             ->get();
 
-        // Creamos el contenido del CSV manualmente (forma sencilla)
-        $csvData = "Empleado,Fecha,Hora de ingreso,Hora de salida,Estado de asistencia\n";
+        $fileName = "reporte_asistencia_{$year}_{$month}.csv";
 
-        foreach ($attendances as $row) {
-            $nombre = $row->user ? $row->user->name : 'Sin nombre';
-            $ingreso = $row->check_in ? $row->check_in : '-';
-            $salida = $row->check_out ? $row->check_out : '-';
-            $estado = $row->status;
+        $headers = [
+            "Content-type"        => "text/csv",
+            "Content-Disposition" => "attachment; filename=$fileName",
+            "Pragma"              => "no-cache",
+            "Cache-Control"       => "must-revalidate, post-check=0, pre-check=0",
+            "Expires"             => "0"
+        ];
 
-            // Concatenamos cada fila separada por comas
-            $csvData .= $nombre . ',' . $row->attendance_date . ',' . $ingreso . ',' . $salida . ',' . $estado . "\n";
-        }
+        $callback = function () use ($attendances) {
+            $file = fopen('php://output', 'w');
+            
+            // BOM para compatibilidad con Excel (acentos y ñ)
+            fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
+            
+            fputcsv($file, ['Empleado', 'Fecha', 'Hora de ingreso', 'Hora de salida', 'Estado de asistencia']);
 
-        // Retornamos el archivo para descargar
-        return response($csvData)
-            ->header('Content-Type', 'text/csv')
-            ->header('Content-Disposition', 'attachment; filename="reporte_asistencia.csv"');
+            foreach ($attendances as $row) {
+                fputcsv($file, [
+                    $row->user->name ?? 'Desconocido',
+                    $row->attendance_date,
+                    $row->check_in ?? '-',
+                    $row->check_out ?? '-',
+                    ucfirst($row->status)
+                ]);
+            }
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
     }
 }
