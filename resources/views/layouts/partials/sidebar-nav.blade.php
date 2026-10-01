@@ -69,7 +69,7 @@
                 <a href="{{ route('admin.login-audits.index') }}"
                     class="flex items-center px-3 py-2.5 rounded-lg font-medium transition-colors {{ request()->routeIs('admin.login-audits.*') ? 'bg-indigo-50 text-indigo-600' : 'text-slate-600 hover:bg-slate-50 hover:text-indigo-600' }}">
                     <i data-feather="shield" class="w-5 h-5 mr-3"></i>
-                    Audit Login
+                    Audit masuk
                 </a>
             @endif
 

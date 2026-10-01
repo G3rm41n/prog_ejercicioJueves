@@ -80,8 +80,7 @@ class AttendanceReportController extends Controller
             // BOM para compatibilidad con Excel (acentos y ñ)
             fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
             
-            // Usamos punto y coma (;) como separador para que Excel lo divida en columnas correctamente
-            fputcsv($file, ['Empleado', 'Fecha', 'Hora de ingreso', 'Hora de salida', 'Estado de asistencia'], ';');
+            fputcsv($file, ['Empleado', 'Fecha', 'Hora de ingreso', 'Hora de salida', 'Estado de asistencia']);
 
             foreach ($attendances as $row) {
                 fputcsv($file, [
@@ -90,7 +89,7 @@ class AttendanceReportController extends Controller
                     $row->check_in ?? '-',
                     $row->check_out ?? '-',
                     ucfirst($row->status)
-                ], ';');
+                ]);
             }
             fclose($file);
         };
